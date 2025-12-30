@@ -1,67 +1,109 @@
 <!DOCTYPE html>
-<html lang="zh-TW">
+<html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Snoopy 日文單字課</title>
+  <title>Snoopy Japanese SRS</title>
   <meta name="theme-color" content="#F9D71C">
-
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
-  <meta name="apple-mobile-web-app-title" content="日文複習">
-
+  <meta name="apple-mobile-web-app-title" content="Japanese SRS">
   <link rel="apple-touch-icon" href="icon.png">
+  
   <style>
-    body { background-color: #F9D71C; font-family: sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
+    /* 當螢幕非常小時（如 Apple Watch） */
+    @media (max-width: 300px) {
+        .word { font-size: 1.8rem; margin: 15px 0; }
+        .meaning { font-size: 1rem; padding: 10px; }
+        .btn { padding: 10px; font-size: 0.8rem; }
+        #app { width: 95%; padding: 15px; }
+        .button-group { gap: 5px; }
+    }
+    body { background-color: #F9D71C; font-family: 'Segoe UI', sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
     #app { background: white; width: 85%; max-width: 400px; padding: 30px; border: 3px solid black; border-radius: 20px; box-shadow: 8px 8px 0px black; text-align: center; }
     
-    /* 進度條容器 */
     .progress-container { width: 100%; background: #eee; height: 10px; border-radius: 5px; margin-bottom: 20px; overflow: hidden; border: 1px solid #000; }
-    .progress-bar { background: #F9D71C; height: 100%; width: 0%; transition: width 0.3s; }
+    .progress-bar { background: #574b90; height: 100%; width: 0%; transition: width 0.3s; }
     
-    .word { font-size: 3rem; font-weight: bold; margin: 30px 0; }
-    .meaning { font-size: 1.5rem; color: #555; background: #f9f9f9; padding: 20px; border-radius: 10px; margin-bottom: 20px; }
+    .word { font-size: 3rem; font-weight: bold; margin: 30px 0; cursor: pointer; }
+    .meaning { font-size: 1.5rem; color: #555; background: #f9f9f9; padding: 20px; border-radius: 10px; margin-bottom: 20px; border: 1px dashed #ccc; }
     .hidden { display: none; }
     
-    .btn { width: 100%; padding: 15px; margin: 5px 0; border: 2px solid black; border-radius: 50px; cursor: pointer; font-weight: bold; font-size: 1rem; }
-    .show-btn { background: #F9D71C; }
-    .rate-0 { background: #ffcccc; }
-    .rate-1 { background: #fff4cc; }
-    .rate-2 { background: #ccffcc; }
+    .btn { width: 100%; padding: 15px; border: 2px solid black; border-radius: 12px; cursor: pointer; font-weight: bold; font-size: 1rem; transition: transform 0.1s; }
+    .btn:active { transform: scale(0.95); }
+    
+    .show-btn { background: #F9D71C; color: black; width: 100%; }
+    
+    /* 智慧按鈕群組排版 */
+    .button-group { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px; }
+    .rate-0 { background: #ff5252; color: white; } /* Again */
+    .rate-1 { background: #ffb142; color: white; } /* Hard */
+    .rate-2 { background: #33d9b2; color: white; } /* Good */
+    .rate-3 { background: #34ace0; color: white; } /* Easy */
     
     .finish-msg { font-size: 1.2rem; line-height: 1.6; }
   </style>
 </head>
 <body>
 
-<div id="app">
-  <div id="game-ui">
-    <div class="progress-container"><div id="pb" class="progress-bar"></div></div>
-    <div id="counter" style="font-size: 0.8rem;">載入中...</div>
-    <div class="word" id="word">...</div>
-    <div class="meaning hidden" id="meaning"></div>
-    
-    <button id="show-btn" class="btn show-btn" onclick="showAns()">顯示答案</button>
-    <div id="rating-ui" class="hidden">
-      <button class="btn rate-0" onclick="submit(0)">不熟悉 (1天後)</button>
-      <button class="btn rate-1" onclick="submit(1)">有點熟 (預計×2倍天數)</button>
-      <button class="btn rate-2" onclick="submit(2)">很熟悉 (預計×3.5倍天數)</button>
+    <div id="app">
+        Loading...
     </div>
-  </div>
-</div>
 
 <script>
   const API_URL = "https://script.google.com/macros/s/AKfycbwm_VIU-coXVSBTSGyRrO8p4Y8Bdg-r65yB-XcQ18r-KgR2BgHflEWW81izx2Ub95s5/exec";
   let cards = [];
   let cur = 0;
 
+  function speak(text) {
+    window.speechSynthesis.cancel();
+    const msg = new SpeechSynthesisUtterance(text);
+    const voices = window.speechSynthesis.getVoices();
+    const jpFemaleVoice = voices.find(v => v.lang.includes('ja') && (v.name.includes('Kyoko') || v.name.includes('O-Ri') || v.name.includes('Female')));
+    if (jpFemaleVoice) msg.voice = jpFemaleVoice;
+    msg.lang = 'ja-JP';
+    msg.rate = 0.9;
+    window.speechSynthesis.speak(msg);
+  }
+
   async function load() {
-    const res = await fetch(API_URL);
-    cards = await res.json();
-    if (cards.length === 0) {
-      document.getElementById('app').innerHTML = "<div class='finish-msg'>🎉 太棒了！<br>目前沒有需要複習的單字囉！</div>";
-      return;
+    try {
+        const res = await fetch(API_URL);
+        cards = await res.json();
+        
+        if (cards.length === 0) {
+            document.getElementById('app').innerHTML = "<div class='finish-msg'>🎉 All reviews completed!</div>";
+            return;
+        }
+
+        document.getElementById('app').innerHTML = `
+            <h2 style="margin-top:0;">Ready?</h2>
+            <p>You have ${cards.length} words due today.</p>
+            <button class="btn show-btn" onclick="startApp()">Start Review</button>
+        `;
+    } catch (e) {
+        document.getElementById('app').innerText = "Error loading data. Please check your API URL.";
     }
+  }
+
+  function startApp() {
+    document.getElementById('app').innerHTML = `
+        <div id="game-ui">
+            <div class="progress-container"><div id="pb" class="progress-bar"></div></div>
+            <div id="counter" style="margin: 15px 0; font-weight: 500; font-size: 0.9rem;">Due Today: ...</div>
+            <div class="word" id="word" onclick="speak(this.innerText)">...</div>
+            <div class="meaning hidden" id="meaning"></div>
+            <button id="show-btn" class="btn show-btn" onclick="showAns()">Show Answer</button>
+            <div id="rating-ui" class="hidden">
+                <div class="button-group">
+                    <button class="btn rate-0" onclick="submit(0)">Again</button>
+                    <button class="btn rate-1" onclick="submit(1)">Hard</button>
+                    <button class="btn rate-2" onclick="submit(2)">Good</button>
+                    <button class="btn rate-3" onclick="submit(3)">Easy</button>
+                </div>
+            </div>
+        </div>
+    `;
     render();
   }
 
@@ -69,14 +111,14 @@
     const card = cards[cur];
     document.getElementById('word').innerText = card.word;
     document.getElementById('meaning').innerText = card.meaning;
-    document.getElementById('counter').innerText = `第 ${cur + 1} 題 / 共 ${cards.length} 題`;
-    
-    // 更新進度條
+    document.getElementById('counter').innerText = `Due Today: ${cur + 1} / ${cards.length}`;
     document.getElementById('pb').style.width = ((cur + 1) / cards.length) * 100 + "%";
     
     document.getElementById('meaning').classList.add('hidden');
     document.getElementById('rating-ui').classList.add('hidden');
     document.getElementById('show-btn').classList.remove('hidden');
+    
+    speak(card.word);
   }
 
   function showAns() {
@@ -87,19 +129,24 @@
 
   async function submit(q) {
     const card = cards[cur];
-    
-    // 背景更新 GAS
-    fetch(API_URL, { method: 'POST', body: JSON.stringify({ rowId: card.rowId, quality: q }) });
+    // 發送到 GAS (請確保 GAS 的 doPost 也更新了對應的 rating 邏輯)
+    fetch(API_URL, { method: 'POST', body: JSON.stringify({ rowId: card.rowId, rating: q }) });
 
     if (cur < cards.length - 1) {
       cur++;
       render();
     } else {
-      document.getElementById('app').innerHTML = "<div class='finish-msg'><h2>任務完成！</h2><p>這組 20 題已經複習完畢。<br>想繼續挑戰可以重新整理網頁！</p><button class='btn show-btn' onclick='location.reload()'>再來一組</button></div>";
+      document.getElementById('app').innerHTML = `
+        <div class='finish-msg'>
+            <h2>All Done!</h2>
+            <p>You've finished your review for now.<br>Keep it up!</p>
+            <button class='btn show-btn' onclick='location.reload()'>Review Again</button>
+        </div>`;
     }
   }
 
   load();
+  window.speechSynthesis.onvoiceschanged = () => window.speechSynthesis.getVoices();
 </script>
 </body>
 </html>
